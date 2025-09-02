@@ -1,29 +1,57 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>LIMS CPP v:2.0 — Login</title>
-  <link rel="stylesheet" href="./css/styles.css">
+  <link rel="stylesheet" href="./css/styles.css" />
   <script type="module">
     import { supabase } from './js/supabaseClient.js';
     import { toast } from './js/ui.js';
-    window.addEventListener('DOMContentLoaded', async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) window.location.href = './dashboard.html';
 
+    // Helper: URL tujuan setelah login (robust utk GitHub Pages subfolder)
+    const DASHBOARD_URL = new URL('./dashboard.html', window.location.href).href;
+
+    async function goIfLoggedIn() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = DASHBOARD_URL;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Jika sudah punya sesi, langsung ke dashboard
+      await goIfLoggedIn();
+
+      // Auto-redirect ketika status auth berubah (mis. selesai OAuth)
+      supabase.auth.onAuthStateChange(async (_event, _session) => {
+        await goIfLoggedIn();
+      });
+
+      // Login via Google OAuth
       document.getElementById('btn-google').addEventListener('click', async () => {
-        const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard.html' } });
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: DASHBOARD_URL, // setelah callback Supabase, lanjut ke dashboard
+          }
+        });
         if (error) toast('Login gagal: ' + error.message);
       });
 
-      document.getElementById('email-login').addEventListener('submit', async (e) => {
+      // Login via magic link (email OTP)
+      const form = document.getElementById('email-login');
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = e.target.email.value.trim();
         if (!email) return toast('Masukkan email.');
-        const { error } = await supabase.auth.signInWithOtp({ email });
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: DASHBOARD_URL, // setelah verifikasi email, masuk ke dashboard
+          }
+        });
         if (error) return toast('Gagal mengirim magic link: ' + error.message);
-        toast('Magic link dikirim. Cek email Anda.');
+        toast('Magic link dikirim. Silakan cek email Anda.');
+        form.reset();
       });
     });
   </script>
@@ -35,21 +63,33 @@
       <div class="menu"><span class="badge">Animal Health Laboratory</span></div>
     </div>
   </nav>
+
   <div class="container">
     <div class="card">
       <h2>Masuk</h2>
-      <p class="helper">Gunakan akun Google Anda atau magic-link email.</p>
-      <div class="row">
+      <p class="helper">Gunakan akun Google Anda atau magic-link email untuk masuk ke sistem.</p>
+
+      <div class="row" style="align-items:center;">
         <button id="btn-google">Continue with Google</button>
       </div>
-      <hr>
-      <form id="email-login" class="row" style="max-width: 420px;">
-        <label>Email</label>
-        <input type="email" name="email" placeholder="you@example.com" required>
-        <button type="submit">Kirim Magic Link</button>
+
+      <hr />
+
+      <form id="email-login" class="row" style="max-width:480px;">
+        <div class="row" style="width:100%;">
+          <div style="flex:2;">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" placeholder="you@example.com" required />
+          </div>
+          <div style="flex:1; align-self:end;">
+            <button type="submit" style="width:100%;">Kirim Magic Link</button>
+          </div>
+        </div>
+        <p class="helper">Kami akan mengirimkan tautan login satu kali ke alamat email Anda.</p>
       </form>
     </div>
   </div>
+
   <div id="toast" class="toast"></div>
 </body>
 </html>
