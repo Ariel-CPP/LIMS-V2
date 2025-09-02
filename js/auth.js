@@ -14,13 +14,14 @@ export async function getProfile() {
   const session = await requireAuth();
   if (!session) return null;
   const { data, error } = await supabase
+      .schema('app')
       .from('user_profile')
       .select('name,email,role')
       .eq('user_id', session.user.id)
       .maybeSingle();
   if (error) {
     console.error(error);
-    toast('Gagal mengambil profil (cek RLS).');
+    toast('Gagal mengambil profil (cek RLS/scheme).');
   }
   return data;
 }
