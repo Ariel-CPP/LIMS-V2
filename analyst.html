@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Analyst</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth, getProfile } from './js/auth.js';
+    import { listAliquotsByLabGroup, listResultsByAliquot, upsertResult, setLabGroupStatus } from './js/api.js';
+    import { toast } from './js/ui.js';
+    import { supabase } from './js/supabaseClient.js';
+
+    async function mustAnalyst() {
+      const p = await getProfile();
+      if (!p || !['ANALYST','ADMIN','SUPERVISOR'].includes(p.role)) {
+        toast('Akses ditolak.'); setTimeout(()=> window.location.href='./dashboard.html', 800);
+      }
+    }
+
+    async function loadInProgress() {
+      const { data, error } = await supabase.from('lab_group').select('id,lab,site,status').eq('status','IN_PROGRESS').order('id', { ascending:false });
+      if (error) return toast(error.message);
+      const sel = document.getElementById('lg'); sel.innerHTML='';
+      for (const r of data) {
+        const opt = document.createElement('option'); opt.value = r.id; opt.textContent = `${r.lab}/${r.site} — ${r.id.slice(0,8)}`;
+        sel.appendChild(opt);
+      }
+      if (data.length) { sel.value = data[0].id; await loadAliquots(); }
+    }
+
+    async function loadAliquots() {
+      const lg = document.getElementById('lg').value; if (!lg) return;
+      const list = await listAliquotsByLabGroup(lg);
+      const tbody = document.querySelector('#tb tbody'); tbody.innerHTML='';
+      for (const a of list) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`<td class="kbd">\${a.id.slice(0,8)}</td>
+                         <td>\${a.barcode_value||'-'}</td>
+                         <td><button class="btn-open" data-id="\${a.id}">Isi Hasil</button></td>\`;
+        tbody.appendChild(tr);
+      }
+      document.querySelectorAll('.btn-open').forEach(b=>b.addEventListener('click', openDialog));
+    }
+
+    async function openDialog(e) {
+      const aliquot_id = e.target.dataset.id;
+      const rows = await listResultsByAliquot(aliquot_id);
+      const dlg = document.getElementById('dlg'); dlg.classList.remove('hidden');
+      const body = document.getElementById('dlg-body'); body.innerHTML='';
+      const form = document.createElement('form');
+      form.innerHTML = \`
+        <div class="row">
+          <div><label>Parameter Code</label><input name="parameter_code" placeholder="e.g., NH3, Vibrio"></div>
+          <div><label>Value Kind</label><select name="value_kind"><option>NUMERIC</option><option>TEXT</option><option>QUAL</option></select></div>
+          <div><label>Value</label><input name="value"></div>
+          <div><label>Unit</label><input name="unit" placeholder="mg/L, CFU/mL, ..."></div>
+        </div>
+        <div class="row">
+          <div><label>Method</label><input name="method"></div>
+          <div><label>Instrument</label><input name="instrument"></div>
+          <div><label>Analyzed At</label><input type="datetime-local" name="analyzed_at"></div>
+        </div>
+        <button type="submit">Tambah Hasil</button>
+        <button type="button" id="dlg-close">Tutup</button>
+      \`;
+      body.appendChild(form);
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const fd = new FormData(form);
+        const valKind = fd.get('value_kind');
+        const row = {
+          parameter_code: fd.get('parameter_code'),
+          value_kind: valKind,
+          unit: fd.get('unit') || null,
+          method: fd.get('method') || null,
+          instrument: fd.get('instrument') || null,
+          analyzed_at: fd.get('analyzed_at') ? new Date(fd.get('analyzed_at')).toISOString() : null
+        };
+        if (valKind==='NUMERIC') row.value_numeric = parseFloat(fd.get('value'));
+        else if (valKind==='TEXT') row.value_text = fd.get('value');
+        else row.value_qual = fd.get('value');
+        try { await upsertResult(aliquot_id, row); toast('Hasil ditambahkan'); }
+        catch(err){ toast(err.message); }
+      });
+      document.getElementById('dlg-close').addEventListener('click', ()=> dlg.classList.add('hidden'));
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth(); await mustAnalyst();
+      await loadInProgress();
+      document.getElementById('lg').addEventListener('change', loadAliquots);
+      document.getElementById('btn-mark-reviewed').addEventListener('click', async () => {
+        const lg = document.getElementById('lg').value; if (!lg) return;
+        try { await setLabGroupStatus(lg, 'REVIEWED'); toast('Marked REVIEWED'); }
+        catch(err){ toast(err.message); }
+      });
+    });
+  </script>
+  <style>
+    #dlg {{ position: fixed; inset:0; background: rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; }}
+    #dlg .panel {{ background: var(--card); border:1px solid #1c2a45; border-radius:16px; padding:16px; width: min(800px, 92vw); }}
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a href="./dashboard.html">Dashboard</a>
+        <a href="./submission.html">Submission</a>
+        <a href="./reports.html">Reports</a>
+        <a class="active" href="./analyst.html">Analyst</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Analyst Workbench</h2>
+      <div class="row">
+        <div>
+          <label>Pilih Lab Group (IN_PROGRESS)</label>
+          <select id="lg"></select>
+        </div>
+      </div>
+      <table id="tb" class="table">
+        <thead><tr><th>Aliquot</th><th>Barcode</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div style="margin-top:10px;">
+        <button id="btn-mark-reviewed">Mark as REVIEWED</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg" class="hidden">
+    <div class="panel">
+      <h3>Input Hasil</h3>
+      <div id="dlg-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+</body>
+</html>

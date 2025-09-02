@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Admin Intake</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth, getProfile } from './js/auth.js';
+    import { adminIntakeList, listAliquotsByLabGroup, acceptAliquot, setLabGroupStatus, rejectLabGroup } from './js/api.js';
+    import { toast } from './js/ui.js';
+
+    async function mustStaff() {
+      const p = await getProfile();
+      if (!p || !['ADMIN','ANALYST','SUPERVISOR'].includes(p.role)) {
+        toast('Akses ditolak.');
+        setTimeout(()=> window.location.href='./dashboard.html', 800);
+      }
+    }
+
+    async function load() {
+      const items = await adminIntakeList();
+      const tb = document.querySelector('tbody'); tb.innerHTML='';
+      for (const lg of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`<td class="kbd">\${lg.id.slice(0,8)}</td>
+                         <td>\${lg.lab}/\${lg.site}</td>
+                         <td>\${lg.status}</td>
+                         <td><button class="btn-accept" data-id="\${lg.id}">Mark RECEIVED</button>
+                             <button class="btn-reject" data-id="\${lg.id}">Reject</button></td>\`;
+        tb.appendChild(tr);
+      }
+      document.querySelectorAll('.btn-accept').forEach(b=>b.addEventListener('click', async (e)=>{
+        const id = e.target.dataset.id;
+        try { await setLabGroupStatus(id, 'RECEIVED'); toast('Status: RECEIVED'); }
+        catch(err){ toast(err.message); }
+      }));
+      document.querySelectorAll('.btn-reject').forEach(b=>b.addEventListener('click', async (e)=>{
+        const id = e.target.dataset.id;
+        const reason = prompt('Alasan penolakan? (wajib)');
+        if (!reason) return;
+        try { await rejectLabGroup(id, reason); toast('Ditolak'); load(); }
+        catch(err){ toast(err.message); }
+      }));
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => { await requireAuth(); await mustStaff(); load(); });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a href="./dashboard.html">Dashboard</a>
+        <a href="./submission.html">Submission</a>
+        <a href="./reports.html">Reports</a>
+        <a class="active" href="./admin-intake.html">Admin Intake</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Penerimaan Sampel</h2>
+      <table class="table">
+        <thead><tr><th>LabGroup</th><th>Lab/Site</th><th>Status</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="helper">Tandai RECEIVED saat sampel fisik diterima & label terverifikasi.</p>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

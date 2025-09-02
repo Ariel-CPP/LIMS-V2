@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Submission</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { createSubmission, createSamplingEvent, createLabGroup, addSample, createAliquot } from './js/api.js';
+    import { toast } from './js/ui.js';
+    import { serializeForm } from './js/utils.js';
+
+    let samples = [];
+
+    function renderSamples() {
+      const body = document.querySelector('#tb-samples tbody');
+      body.innerHTML = '';
+      samples.forEach((s, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`
+          <td>\${i+1}</td>
+          <td>\${s.matrix}</td>
+          <td>\${s.species_stage||'-'}</td>
+          <td>\${s.barcode_value||'-'}</td>
+          <td><button data-i="\${i}" class="btn-del">Hapus</button></td>
+        \`;
+        body.appendChild(tr);
+      });
+      document.querySelectorAll('.btn-del').forEach(b => {
+        b.addEventListener('click', (e) => {
+          const i = +e.target.dataset.i;
+          samples.splice(i,1); renderSamples();
+        });
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth();
+      document.getElementById('btn-add-sample').addEventListener('click', () => {
+        const m = document.getElementById('matrix').value;
+        const ss = document.getElementById('species_stage').value;
+        const bc = document.getElementById('barcode').value.trim();
+        if (!m) return toast('Pilih matrix.');
+        samples.push({ matrix: m, species_stage: ss, barcode_value: bc });
+        document.getElementById('barcode').value='';
+        renderSamples();
+      });
+
+      document.getElementById('form-sub').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (samples.length === 0) return toast('Tambahkan minimal 1 sample.');
+        try {
+          const f = serializeForm(e.target);
+          const submission = await createSubmission({
+            case_type: f.case_type,
+            urgency: f.urgency,
+            anamnesis: f.anamnesis,
+            division: f.division,
+            department: f.department
+          });
+          await createSamplingEvent(submission.id, {
+            sampling_datetime: f.sampling_datetime || null,
+            doc: f.doc || null,
+            shipping_date: f.shipping_date || null
+          });
+          const lg = await createLabGroup(submission.id, f.lab, f.site);
+
+          for (const s of samples) {
+            const sm = await addSample(submission.id, { matrix: s.matrix, species_stage: s.species_stage });
+            if (s.barcode_value) {
+              await createAliquot(sm.id, lg.id, s.barcode_value);
+            }
+          }
+          toast('Submission tersimpan.'); 
+          e.target.reset(); samples = []; renderSamples();
+        } catch (err) {
+          console.error(err); toast('Gagal menyimpan: ' + err.message);
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a id="m-dashboard" href="./dashboard.html">Dashboard</a>
+        <a id="m-submission" class="active" href="./submission.html">Submission</a>
+        <a id="m-reports" href="./reports.html">Reports</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Form Submission</h2>
+      <form id="form-sub">
+        <div class="row">
+          <div>
+            <label>Case Type</label>
+            <select name="case_type" required>
+              <option value="MONITORING">Monitoring</option>
+              <option value="KASUS">Kasus</option>
+            </select>
+          </div>
+          <div>
+            <label>Urgency</label>
+            <select name="urgency" required>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM" selected>Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+          </div>
+        </div>
+        <label>Anamnesis / Keterangan</label>
+        <textarea name="anamnesis" rows="3" placeholder="Ringkas & jelas"></textarea>
+        <div class="row">
+          <div><label>Division</label><input name="division" placeholder="Divisi"></div>
+          <div><label>Department</label><input name="department" placeholder="Departemen"></div>
+        </div>
+        <hr>
+        <h3>Sampling</h3>
+        <div class="row">
+          <div><label>Sampling Datetime</label><input type="datetime-local" name="sampling_datetime"></div>
+          <div><label>DOC</label><input type="number" name="doc" min="0"></div>
+          <div><label>Shipping Date</label><input type="date" name="shipping_date"></div>
+        </div>
+        <hr>
+        <h3>Lab & Site</h3>
+        <div class="row">
+          <div>
+            <label>Lab</label>
+            <select name="lab" required>
+              <option value="PCR">PCR</option>
+              <option value="MIKROBIOLOGI">MIKROBIOLOGI</option>
+              <option value="WQ">WQ</option>
+              <option value="HISTO">HISTO</option>
+              <option value="IMUNO">IMUNO</option>
+            </select>
+          </div>
+          <div>
+            <label>Site</label>
+            <select name="site" required>
+              <option value="CENTRAL">CENTRAL</option>
+              <option value="MEDAN">MEDAN</option>
+              <option value="LAMPUNG">LAMPUNG</option>
+              <option value="SITUBONDO">SITUBONDO</option>
+            </select>
+          </div>
+        </div>
+        <hr>
+        <h3>Samples</h3>
+        <div class="row">
+          <div>
+            <label>Matrix</label>
+            <select id="matrix">
+              <option value="IKAN">IKAN</option>
+              <option value="UDANG">UDANG</option>
+              <option value="PAKAN">PAKAN</option>
+              <option value="LUMPUR">LUMPUR</option>
+              <option value="AIR">AIR</option>
+              <option value="LAINNYA">LAINNYA</option>
+            </select>
+          </div>
+          <div><label>Species / Stage</label><input id="species_stage" placeholder="PL-10, juvenile, dll."></div>
+          <div><label>Barcode (opsional)</label><input id="barcode" placeholder="AHL-..."></div>
+          <div style="align-self:end"><button type="button" id="btn-add-sample">Tambah Sample</button></div>
+        </div>
+        <table id="tb-samples" class="table">
+          <thead><tr><th>#</th><th>Matrix</th><th>Stage</th><th>Barcode</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:12px;"><button type="submit">Simpan Submission</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

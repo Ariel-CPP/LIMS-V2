@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Approvals</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth, getProfile } from './js/auth.js';
+    import { setLabGroupStatus } from './js/api.js';
+    import { toast } from './js/ui.js';
+    import { supabase } from './js/supabaseClient.js';
+
+    async function mustSupervisor() {
+      const p = await getProfile();
+      if (!p || !['SUPERVISOR','ADMIN'].includes(p.role)) {
+        toast('Akses ditolak.');
+        setTimeout(()=> window.location.href='./dashboard.html', 800);
+      }
+    }
+
+    async function loadReviewed() {
+      const { data, error } = await supabase.from('lab_group').select('id,lab,site,status,updated_at').eq('status','REVIEWED').order('updated_at', { ascending:false });
+      if (error) return toast(error.message);
+      const tb = document.querySelector('tbody'); tb.innerHTML = '';
+      for (const r of data) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`<td class="kbd">\${r.id.slice(0,8)}</td>
+                         <td>\${r.lab}/\${r.site}</td>
+                         <td>\${r.status}</td>
+                         <td>\${new Date(r.updated_at).toLocaleString()}</td>
+                         <td>
+                           <button class="btn-approve" data-id="\${r.id}">Approve</button>
+                           <button class="btn-release" data-id="\${r.id}">Release</button>
+                         </td>\`;
+        tb.appendChild(tr);
+      }
+      document.querySelectorAll('.btn-approve').forEach(b=>b.addEventListener('click', async(e)=>{
+        const id = e.target.dataset.id;
+        try { await setLabGroupStatus(id, 'APPROVED'); toast('Approved'); loadReviewed(); } catch(err){ toast(err.message); }
+      }));
+      document.querySelectorAll('.btn-release').forEach(b=>b.addEventListener('click', async(e)=>{
+        const id = e.target.dataset.id;
+        try { await setLabGroupStatus(id, 'RELEASED'); toast('Released'); loadReviewed(); } catch(err){ toast(err.message); }
+      }));
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth(); await mustSupervisor(); loadReviewed();
+    });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a href="./dashboard.html">Dashboard</a>
+        <a href="./submission.html">Submission</a>
+        <a href="./reports.html">Reports</a>
+        <a class="active" href="./approvals.html">Approvals</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Review → Approve → Release</h2>
+      <table class="table">
+        <thead><tr><th>LabGroup</th><th>Lab/Site</th><th>Status</th><th>Updated</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="helper">Hanya Supervisor/Admin.</p>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

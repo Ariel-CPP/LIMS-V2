@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Reports</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { fetchMyReports } from './js/api.js';
+    import { fmtDateOnly } from './js/utils.js';
+    import { setActiveMenu, toast } from './js/ui.js';
+
+    let page = 1; const pageSize = 10; let kw = '';
+
+    async function load() {
+      try {
+        const { data, total } = await fetchMyReports({ page, pageSize, q: kw });
+        const tbody = document.querySelector('tbody'); tbody.innerHTML='';
+        for (const r of data) {
+          const url = \`https://zhlfizeseaoouxgptzwy.supabase.co/storage/v1/object/authenticated/lims-reports/result/\${r.lab_group_id}/report.html\`;
+          const tr = document.createElement('tr');
+          tr.innerHTML = \`<td><span class="kbd">\${r.lab_group_id.slice(0,8)}</span></td>
+                           <td>\${r.lab} / \${r.site}</td>
+                           <td>\${r.status}</td>
+                           <td>\${fmtDateOnly(r.first_accepted_date) || '-'}</td>
+                           <td><a href="\${url}" target="_blank">Preview</a></td>\`;
+          tbody.appendChild(tr);
+        }
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        document.getElementById('pg-info').textContent = \`Page \${page} / \${totalPages} (\${total} reports)\`;
+        document.getElementById('prev').disabled = page<=1;
+        document.getElementById('next').disabled = page>=totalPages;
+      } catch(e) { console.error(e); toast('Gagal memuat reports'); }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth(); setActiveMenu('m-reports');
+      document.getElementById('prev').addEventListener('click', () => { page=Math.max(1,page-1); load(); });
+      document.getElementById('next').addEventListener('click', () => { page=page+1; load(); });
+      document.getElementById('find').addEventListener('input', (e) => { kw = e.target.value.trim(); page=1; load(); });
+      load();
+    });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a id="m-dashboard" href="./dashboard.html">Dashboard</a>
+        <a id="m-submission" href="./submission.html">Submission</a>
+        <a id="m-reports" class="active" href="./reports.html">Reports</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <div class="row" style="align-items:center; justify-content: space-between;">
+        <h2>Reports</h2>
+        <input id="find" placeholder="Cari (lab/site/id)">
+      </div>
+      <table class="table">
+        <thead><tr><th>LG ID</th><th>Lab/Site</th><th>Status</th><th>Accepted</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="pager">
+        <button id="prev">Prev</button>
+        <div id="pg-info" class="helper"></div>
+        <button id="next">Next</button>
+      </div>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

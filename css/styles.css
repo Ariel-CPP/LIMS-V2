@@ -1,0 +1,28 @@
+:root { --bg:#0b1220; --card:#11182a; --muted:#95a3b3; --accent:#4dd4ff; --ok:#2ecc71; --warn:#f1c40f; --bad:#e74c3c; }
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color:#e6eef8; }
+a { color: var(--accent); text-decoration: none; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+.card { background: var(--card); border:1px solid #1c2a45; border-radius:16px; padding:20px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+input, select, button, textarea { background:#0d1526; color:#e6eef8; border:1px solid #1c2a45; border-radius:12px; padding:10px 12px; outline:none; }
+button { cursor:pointer; transition: transform .05s ease, background .2s ease; }
+button:hover { transform: translateY(-1px); }
+label { display:block; margin:10px 0 6px; color:#cfe0ff; font-size: 14px; }
+.row { display:flex; gap:14px; flex-wrap: wrap; }
+.row > * { flex: 1; min-width: 220px; }
+nav { position: sticky; top:0; background:#0b1220; border-bottom:1px solid #1c2a45; backdrop-filter: blur(6px); z-index:50; }
+.navbar { display:flex; justify-content: space-between; align-items:center; padding:12px 24px; max-width:1100px; margin:0 auto; }
+.brand { font-weight:800; letter-spacing: 0.4px; }
+.menu { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
+.menu a, .menu button { padding:8px 12px; border-radius:10px; border:1px solid #1c2a45; background:#0d1526; }
+.menu .active { background:#122247; }
+.badge { display:inline-flex; gap:6px; align-items:center; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid #1c2a45; background:#0d1526; color:#cfe0ff; }
+.table { width:100%; border-collapse: collapse; margin-top:12px; }
+.table th, .table td { text-align:left; padding:10px; border-bottom:1px solid #1c2a45; font-size:14px; }
+.table th { color:#cfe0ff; }
+.helper { color: var(--muted); font-size: 13px; }
+.kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0d1526; border:1px solid #1c2a45; border-radius:6px; padding:2px 6px; font-size:12px; }
+.pager { display:flex; justify-content: space-between; align-items:center; gap: 10px; margin-top: 12px; }
+.hidden { display:none !important; }
+hr { border-color:#1c2a45; margin:16px 0; }
+.toast { position: fixed; right: 16px; bottom: 16px; background:#122247; color:#cfe0ff; border:1px solid #1c2a45; padding:12px 14px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display:none; }

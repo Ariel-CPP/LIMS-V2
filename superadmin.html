@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Superadmin</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth, getProfile } from './js/auth.js';
+    import { toast } from './js/ui.js';
+    import { supabase } from './js/supabaseClient.js';
+
+    async function mustSupervisor() {
+      const p = await getProfile();
+      if (!p || !['SUPERVISOR','ADMIN'].includes(p.role)) {
+        toast('Akses ditolak.');
+        setTimeout(()=> window.location.href='./dashboard.html', 800);
+      }
+    }
+
+    async function loadSamples() {
+      const { data, error } = await supabase.from('sample').select('id,submission_id,matrix,species_stage,created_at').order('created_at', { ascending:false }).limit(100);
+      if (error) return toast(error.message);
+      const tb = document.querySelector('tbody'); tb.innerHTML='';
+      for (const r of data) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = \`<td class="kbd">\${r.id.slice(0,8)}</td>
+                         <td class="kbd">\${r.submission_id.slice(0,8)}</td>
+                         <td>\${r.matrix}</td>
+                         <td><input value="\${r.species_stage||''}" data-id="\${r.id}" class="in"></td>
+                         <td><button data-id="\${r.id}" class="btn-save">Simpan</button></td>\`;
+        tb.appendChild(tr);
+      }
+      document.querySelectorAll('.btn-save').forEach(btn => btn.addEventListener('click', async (e) => {
+        const id = e.target.dataset.id;
+        const val = e.target.parentElement.parentElement.querySelector('.in').value;
+        const { error } = await supabase.from('sample').update({ species_stage: val }).eq('id', id);
+        if (error) toast(error.message); else toast('Tersimpan');
+      }));
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth(); await mustSupervisor();
+      loadSamples();
+    });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu">
+        <a href="./dashboard.html">Dashboard</a>
+        <a href="./submission.html">Submission</a>
+        <a href="./reports.html">Reports</a>
+        <a class="active" href="./superadmin.html">Superadmin</a>
+        <button id="btn-logout" onclick="import('./js/auth.js').then(m=>m.signOut())">Logout</button>
+      </div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Edit Metadata Sample (100 terbaru)</h2>
+      <table class="table">
+        <thead><tr><th>Sample</th><th>Submission</th><th>Matrix</th><th>Stage</th><th>Aksi</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="helper">Perubahan disimpan langsung (RLS: staf saja).</p>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

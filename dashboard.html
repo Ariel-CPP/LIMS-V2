@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS — Dashboard</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { fetchMyRecentSubmissions } from './js/api.js';
+    import { fmtDate } from './js/utils.js';
+    import { setActiveMenu, toast } from './js/ui.js';
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await requireAuth();
+      setActiveMenu('m-dashboard');
+      try {
+        const rows = await fetchMyRecentSubmissions();
+        const tb = document.querySelector('#tb-sub tbody');
+        tb.innerHTML = '';
+        for (const r of rows) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td><span class="kbd">${r.id.slice(0,8)}</span></td>
+                          <td>${r.case_type}</td>
+                          <td>${r.urgency}</td>
+                          <td>${r.anamnesis||'-'}</td>
+                          <td>${fmtDate(r.created_at)}</td>`;
+          tb.appendChild(tr);
+        }
+        if (rows.length === 0) document.getElementById('empty').classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+        toast('Gagal memuat data.');
+      }
+    });
+  </script>
+</head>
+<body>
+  
+<nav>
+  <div class="navbar">
+    <div class="brand">LIMS CPP v:2.0</div>
+    <div class="menu">
+      <a id="m-dashboard" href="./dashboard.html">Dashboard</a>
+      <a id="m-submission" href="./submission.html">Submission</a>
+      <a id="m-reports" href="./reports.html">Reports</a>
+      <a id="m-admin" class="hidden" href="./admin-intake.html">Admin Intake</a>
+      <a id="m-analyst" class="hidden" href="./analyst.html">Analyst</a>
+      <a id="m-approvals" class="hidden" href="./approvals.html">Approvals</a>
+      <a id="m-superadmin" class="hidden" href="./superadmin.html">Superadmin</a>
+      <button id="btn-logout">Logout</button>
+    </div>
+  </div>
+</nav>
+<script type="module">
+  import {{ signOut, getProfile }} from './js/auth.js';
+  import {{ setActiveMenu }} from './js/ui.js';
+  (async () => {{
+    const p = await getProfile();
+    if (!p) return;
+    // Role-based menu
+    if (['ADMIN','SUPERVISOR','ANALYST'].includes(p.role)) document.getElementById('m-admin').classList.remove('hidden');
+    if (['ANALYST','ADMIN'].includes(p.role)) document.getElementById('m-analyst').classList.remove('hidden');
+    if (['SUPERVISOR','ADMIN'].includes(p.role)) {{
+      document.getElementById('m-approvals').classList.remove('hidden');
+      document.getElementById('m-superadmin').classList.remove('hidden');
+    }}
+    document.getElementById('btn-logout').addEventListener('click', signOut);
+  }})();
+</script>
+
+  <div class="container">
+    <div class="card">
+      <h2>Submissions 30 Hari Terakhir</h2>
+      <table id="tb-sub" class="table">
+        <thead><tr><th>ID</th><th>Case</th><th>Urgency</th><th>Anamnesis</th><th>Dibuat</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="empty" class="helper hidden">Belum ada submission.</p>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>

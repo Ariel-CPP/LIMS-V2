@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LIMS CPP v:2.0 — Login</title>
+  <link rel="stylesheet" href="./css/styles.css">
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { toast } from './js/ui.js';
+    window.addEventListener('DOMContentLoaded', async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) window.location.href = './dashboard.html';
+
+      document.getElementById('btn-google').addEventListener('click', async () => {
+        const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard.html' } });
+        if (error) toast('Login gagal: ' + error.message);
+      });
+
+      document.getElementById('email-login').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = e.target.email.value.trim();
+        if (!email) return toast('Masukkan email.');
+        const { error } = await supabase.auth.signInWithOtp({ email });
+        if (error) return toast('Gagal mengirim magic link: ' + error.message);
+        toast('Magic link dikirim. Cek email Anda.');
+      });
+    });
+  </script>
+</head>
+<body>
+  <nav>
+    <div class="navbar">
+      <div class="brand">LIMS CPP v:2.0</div>
+      <div class="menu"><span class="badge">Animal Health Laboratory</span></div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h2>Masuk</h2>
+      <p class="helper">Gunakan akun Google Anda atau magic-link email.</p>
+      <div class="row">
+        <button id="btn-google">Continue with Google</button>
+      </div>
+      <hr>
+      <form id="email-login" class="row" style="max-width: 420px;">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="you@example.com" required>
+        <button type="submit">Kirim Magic Link</button>
+      </form>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</body>
+</html>
